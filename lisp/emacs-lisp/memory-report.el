@@ -31,6 +31,7 @@
   (interactive)
   (pop-to-buffer "*Memory-Report*")
   (special-mode)
+  (setq truncate-lines t)
   (let ((reports (append (memory-report--garbage-collect)
                          (memory-report--image-cache)
                          (memory-report--buffers)
@@ -39,14 +40,15 @@
         (inhibit-read-only t)
         summaries details)
     (erase-buffer)
+    (insert "Estimated Emacs Memory Usage\n\n")
     (dolist (report reports)
       (if (listp report)
           (push report summaries)
         (push report details)))
     (dolist (summary (nreverse summaries))
-      (insert (format "%-40s %s\n"
-                      (car summary)
-                      (memory-report--format (cdr summary)))))
+      (insert (format "%s  %s\n"
+                      (memory-report--format (cdr summary))
+                      (car summary))))
     (insert "\n")
     (dolist (detail (nreverse details))
       (insert detail "\n")))
@@ -105,7 +107,7 @@
               (dolist (object (seq-sort (lambda (e1 e2)
                                           (> (cadr e1) (cadr e2)))
                                         data))
-                (insert (format "%s %s\n"
+                (insert (format "%s  %s\n"
                                 (memory-report--format (cadr object))
                                 (capitalize (symbol-name (car object))))))
               (buffer-string))))))
@@ -140,7 +142,7 @@
                                                    (> (cdr e1) (cdr e2)))
                                                  variables)
                 do (insert (memory-report--format size)
-                           " "
+                           "  "
                            (symbol-name symbol)
                            "\n"))
        (buffer-string)))))
@@ -223,7 +225,7 @@
                                                         (> (cdr e1) (cdr e2)))
                                                       buffers)
                      do (insert (memory-report--format size)
-                                " "
+                                "  "
                                 (buffer-name buffer)
                                 "\n"))
             (buffer-string)))))
