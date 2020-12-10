@@ -30,6 +30,7 @@
   (pop-to-buffer "*Memory-Report*")
   (erase-buffer)
   (memory-report--garbage-collect)
+  (memory-report--buffers)
   (memory-report--total-variables)
   (memory-report--largest-variables))
 
@@ -185,6 +186,43 @@
 (defun memory-report--gc-elem (elems type)
   (* (nth 1 (assq type elems))
      (nth 2 (assq type elems))))
+
+(defun memory-report--buffers ()
+  (let ((buffers (mapcar (lambda (buffer)
+                           (cons buffer (memory-usage--buffer buffer)))
+                         (buffer-list))))
+    (insert "Total Memory Usage In Buffers: "
+            (memory-report--format (seq-reduce #'+ (mapcar #'cdr buffers) 0))
+            "\n\n")
+    (insert "Largest Buffers:\n\n")
+    (cl-loop for i from 1 upto 20
+             for (buffer . size) in (seq-sort (lambda (e1 e2)
+                                                (> (cdr e1) (cdr e2)))
+                                              buffers)
+             do (insert (memory-report--format size)
+                        " "
+                        (buffer-name buffer)
+                        "\n"))
+    (insert "\n")))
+
+(defun memory-report--buffer (buffer)
+  (with-current-buffer buffer
+    (+ (save-restriction
+         (widen)
+         (+ (position-bytes (point-max))
+	    (- (position-bytes (point-min)))
+	    (gap-size)))
+       (seq-reduce #'+ (mapcar (lambda (elem)
+                                 (if (cdr elem)
+                                     (memory-report--variable-size
+                                      (make-hash-table :test #'eq)
+                                      (cdr elem))
+                                   0))
+                               (buffer-local-variables buffer))
+                   0)
+       ;; Text properties
+       ;; Overlays
+       )))
 
 (provide 'memory-report)
 
