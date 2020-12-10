@@ -32,9 +32,11 @@
   (pop-to-buffer "*Memory-Report*")
   (erase-buffer)
   (memory-report--garbage-collect)
+  (memory-report--image-cache)
   (memory-report--buffers)
   (memory-report--total-variables)
-  (memory-report--largest-variables))
+  (memory-report--largest-variables)
+  (goto-char (point-min)))
 
 (defvar memory-report--type-size (make-hash-table))
 
@@ -225,6 +227,11 @@
                                      (object-intervals buffer))
        (memory-report--variable-size (make-hash-table :test #'eq)
                                      (overlay-lists)))))
+
+(defun memory-report--image-cache ()
+  (insert "Total Image Cache Size: "
+          (memory-report--format (image-cache-size))
+          "\n\n"))
 
 (provide 'memory-report)
 
