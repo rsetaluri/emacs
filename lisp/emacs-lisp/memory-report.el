@@ -30,12 +30,26 @@
   "Generate a report of how Emacs is using memory."
   (interactive)
   (pop-to-buffer "*Memory-Report*")
-  (erase-buffer)
-  (memory-report--garbage-collect)
-  (memory-report--image-cache)
-  (memory-report--buffers)
-  (memory-report--total-variables)
-  (memory-report--largest-variables)
+  (special-mode)
+  (let ((reports (append (memory-report--garbage-collect)
+                         (memory-report--image-cache)
+                         (memory-report--buffers)
+                         (memory-report--total-variables)
+                         (memory-report--largest-variables)))
+        (inhibit-read-only t)
+        summaries details)
+    (erase-buffer)
+    (dolist (report reports)
+      (if (listp report)
+          (push report summaries)
+        (push report details)))
+    (dolist (summary (nreverse summaries))
+      (insert (format "%-40s %s\n"
+                      (car summary)
+                      (memory-report--format (cdr summary)))))
+    (insert "\n")
+    (dolist (detail (nreverse details))
+      (insert detail "\n")))
   (goto-char (point-min)))
 
 (defvar memory-report--type-size (make-hash-table))
@@ -61,7 +75,6 @@
 (defun memory-report--garbage-collect ()
   (let ((elems (garbage-collect)))
     (memory-report--set-size elems)
-    (insert "Overall Object Memory Usage\n\n")
     (let ((data (list
                  (list 'strings
                        (+ (memory-report--gc-elem elems 'strings)
@@ -75,22 +88,27 @@
                  (list 'intervals (memory-report--gc-elem elems 'intervals))
                  (list 'buffer-objects
                        (memory-report--gc-elem elems 'buffers)))))
-      (insert (format "%-20s %-20s\n" "Object Type" "Size"))
-      (dolist (object (seq-sort (lambda (e1 e2)
-                                  (> (cadr e1) (cadr e2)))
-                                data))
-        (insert (format "%-20s %-20s\n"
-                        (capitalize (symbol-name (car object)))
-                        (memory-report--format (cadr object)))))
-      (insert "\nReserved (But Unused) Object Memory: ")
-      (insert (memory-report--format
-               (seq-reduce #'+ (mapcar (lambda (elem)
-                                         (if (nth 3 elem)
-                                             (* (nth 1 elem) (nth 3 elem))
-                                           0))
-                                       elems)
-                           0)))
-      (insert "\n\n"))))
+      (list (cons "Overall Object Memory Usage"
+                  (seq-reduce #'+ (mapcar (lambda (elem)
+                                            (* (nth 1 elem) (nth 2 elem)))
+                                          elems)
+                              0))
+            (cons "Reserved (But Unused) Object Memory"
+                  (seq-reduce #'+ (mapcar (lambda (elem)
+                                            (if (nth 3 elem)
+                                                (* (nth 1 elem) (nth 3 elem))
+                                              0))
+                                          elems)
+                              0))
+            (with-temp-buffer
+              (insert (format "Object Storage:\n\n"))
+              (dolist (object (seq-sort (lambda (e1 e2)
+                                          (> (cadr e1) (cadr e2)))
+                                        data))
+                (insert (format "%s %s\n"
+                                (memory-report--format (cadr object))
+                                (capitalize (symbol-name (car object))))))
+              (buffer-string))))))
 
 (defun memory-report--total-variables ()
   (let ((counted (make-hash-table :test #'eq))
@@ -101,8 +119,7 @@
          (cl-incf total (memory-report--variable-size
                          counted (symbol-value symbol)))))
      obarray)
-    (insert (format "Memory Used By Global Variables: %s\n\n"
-                    (memory-report--format total)))))
+    (list (cons "Memory Used By Global Variables" total))))
 
 (defun memory-report--largest-variables ()
   (let ((variables nil))
@@ -115,15 +132,18 @@
            (when (> size 1000)
              (push (cons symbol size) variables)))))
      obarray)
-    (insert "Largest Variables\n\n")
-    (cl-loop for i from 1 upto 20
-             for (symbol . size) in (seq-sort (lambda (e1 e2)
-                                                (> (cdr e1) (cdr e2)))
-                                              variables)
-             do (insert (memory-report--format size)
-                        " "
-                        (symbol-name symbol)
-                        "\n"))))
+    (list
+     (with-temp-buffer
+       (insert "Largest Variables:\n\n")
+       (cl-loop for i from 1 upto 20
+                for (symbol . size) in (seq-sort (lambda (e1 e2)
+                                                   (> (cdr e1) (cdr e2)))
+                                                 variables)
+                do (insert (memory-report--format size)
+                           " "
+                           (symbol-name symbol)
+                           "\n"))
+       (buffer-string)))))
 
 (defun memory-report--variable-size (counted value)
   (if (gethash value counted)
@@ -194,19 +214,19 @@
   (let ((buffers (mapcar (lambda (buffer)
                            (cons buffer (memory-report--buffer buffer)))
                          (buffer-list))))
-    (insert "Total Memory Usage In Buffers: "
-            (memory-report--format (seq-reduce #'+ (mapcar #'cdr buffers) 0))
-            "\n\n")
-    (insert "Largest Buffers:\n\n")
-    (cl-loop for i from 1 upto 20
-             for (buffer . size) in (seq-sort (lambda (e1 e2)
-                                                (> (cdr e1) (cdr e2)))
-                                              buffers)
-             do (insert (memory-report--format size)
-                        " "
-                        (buffer-name buffer)
-                        "\n"))
-    (insert "\n")))
+    (list (cons "Total Memory Usage In Buffers"
+                (seq-reduce #'+ (mapcar #'cdr buffers) 0))
+          (with-temp-buffer
+            (insert "Largest Buffers:\n\n")
+            (cl-loop for i from 1 upto 20
+                     for (buffer . size) in (seq-sort (lambda (e1 e2)
+                                                        (> (cdr e1) (cdr e2)))
+                                                      buffers)
+                     do (insert (memory-report--format size)
+                                " "
+                                (buffer-name buffer)
+                                "\n"))
+            (buffer-string)))))
 
 (defun memory-report--buffer (buffer)
   (with-current-buffer buffer
@@ -229,9 +249,7 @@
                                      (overlay-lists)))))
 
 (defun memory-report--image-cache ()
-  (insert "Total Image Cache Size: "
-          (memory-report--format (image-cache-size))
-          "\n\n"))
+  (list (cons "Total Image Cache Size" (image-cache-size))))
 
 (provide 'memory-report)
 
