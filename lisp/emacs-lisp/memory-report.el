@@ -32,6 +32,7 @@
   (pop-to-buffer "*Memory-Report*")
   (special-mode)
   (setq truncate-lines t)
+  (message "Gathering data...")
   (let ((reports (append (memory-report--garbage-collect)
                          (memory-report--image-cache)
                          (memory-report--buffers)
@@ -39,6 +40,7 @@
                          (memory-report--largest-variables)))
         (inhibit-read-only t)
         summaries details)
+    (message "Gathering data...done")
     (erase-buffer)
     (insert (propertize "Estimated Emacs Memory Usage\n\n" 'face 'bold))
     (dolist (report reports)
@@ -218,7 +220,7 @@
   (let ((buffers (mapcar (lambda (buffer)
                            (cons buffer (memory-report--buffer buffer)))
                          (buffer-list))))
-    (list (cons "Total Memory Usage In Buffers"
+    (list (cons "Total Buffer Memory Usage"
                 (seq-reduce #'+ (mapcar #'cdr buffers) 0))
           (with-temp-buffer
             (insert (propertize "Largest Buffers\n\n" 'face 'bold))
