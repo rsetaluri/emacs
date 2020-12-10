@@ -40,7 +40,7 @@
         (inhibit-read-only t)
         summaries details)
     (erase-buffer)
-    (insert "Estimated Emacs Memory Usage\n\n")
+    (insert (propertize "Estimated Emacs Memory Usage\n\n" 'face 'bold))
     (dolist (report reports)
       (if (listp report)
           (push report summaries)
@@ -51,7 +51,9 @@
                       (car summary))))
     (insert "\n")
     (dolist (detail (nreverse details))
-      (insert detail "\n")))
+      (insert detail "\n"))
+    ;;(add-face-text-property (point-min) (point) 'variable-pitch)
+    )
   (goto-char (point-min)))
 
 (defvar memory-report--type-size (make-hash-table))
@@ -103,7 +105,7 @@
                                           elems)
                               0))
             (with-temp-buffer
-              (insert (format "Object Storage:\n\n"))
+              (insert (propertize "Object Storage\n\n" 'face 'bold))
               (dolist (object (seq-sort (lambda (e1 e2)
                                           (> (cadr e1) (cadr e2)))
                                         data))
@@ -136,7 +138,7 @@
      obarray)
     (list
      (with-temp-buffer
-       (insert "Largest Variables:\n\n")
+       (insert (propertize "Largest Variables\n\n" 'face 'bold))
        (cl-loop for i from 1 upto 20
                 for (symbol . size) in (seq-sort (lambda (e1 e2)
                                                    (> (cdr e1) (cdr e2)))
@@ -219,7 +221,7 @@
     (list (cons "Total Memory Usage In Buffers"
                 (seq-reduce #'+ (mapcar #'cdr buffers) 0))
           (with-temp-buffer
-            (insert "Largest Buffers:\n\n")
+            (insert (propertize "Largest Buffers\n\n" 'face 'bold))
             (cl-loop for i from 1 upto 20
                      for (buffer . size) in (seq-sort (lambda (e1 e2)
                                                         (> (cdr e1) (cdr e2)))
