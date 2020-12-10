@@ -1805,8 +1805,9 @@ image_frame_cache_size (struct frame *f)
     {
       struct image *img = c->images[i];
 
-      total += img->pixmap->width * img->pixmap->height  *
-	img->pixmap->bits_per_pixel / 8;
+      if (img)
+	total += img->pixmap->width * img->pixmap->height  *
+	  img->pixmap->bits_per_pixel / 8;
     }
   return total;
 }
