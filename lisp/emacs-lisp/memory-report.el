@@ -23,6 +23,8 @@
 
 ;;; Code:
 
+(require 'seq)
+
 ;;;###autoload
 (defun memory-report ()
   "Generate a report of how Emacs is using memory."
@@ -127,14 +129,13 @@
     (setf (gethash value counted) t)
     (memory-report--variable-size-1 counted value)))
 
-(cl-defgeneric memory-report--variable-size-1 (counted value)
+(cl-defgeneric memory-report--variable-size-1 (_counted _value)
   (memory-report--size 'object))
 
 (cl-defmethod memory-report--variable-size-1 (counted (value string))
   (+ (memory-report--size 'string)
      (string-bytes value)
-     ;; string text properties? how
-     ))
+     (memory-report--variable-size counted (object-intervals value))))
 
 (cl-defmethod memory-report--variable-size-1 (counted (value list))
   (let ((total 0)
@@ -172,7 +173,7 @@
      value)
     total))
 
-(cl-defmethod memory-report--variable-size-1 (counted (value float))
+(cl-defmethod memory-report--variable-size-1 (_ (_value float))
   (memory-report--size 'float))
 
 (defun memory-report--format (bytes)
@@ -189,7 +190,7 @@
 
 (defun memory-report--buffers ()
   (let ((buffers (mapcar (lambda (buffer)
-                           (cons buffer (memory-usage--buffer buffer)))
+                           (cons buffer (memory-report--buffer buffer)))
                          (buffer-list))))
     (insert "Total Memory Usage In Buffers: "
             (memory-report--format (seq-reduce #'+ (mapcar #'cdr buffers) 0))
@@ -220,9 +221,10 @@
                                    0))
                                (buffer-local-variables buffer))
                    0)
-       ;; Text properties
-       ;; Overlays
-       )))
+       (memory-report--variable-size (make-hash-table :test #'eq)
+                                     (object-intervals buffer))
+       (memory-report--variable-size (make-hash-table :test #'eq)
+                                     (overlay-lists)))))
 
 (provide 'memory-report)
 
