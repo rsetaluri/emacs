@@ -37,11 +37,17 @@
   (should (equal (memory-report-object-size (cons nil nil)) 16))
   (should (equal (memory-report-object-size (cons 1 2)) 16))
 
+  (should (equal (memory-report-object-size (list 1 2)) 32))
+  (should (equal (memory-report-object-size (list 1)) 16))
+
+  (should (equal (memory-report-object-size (list 'foo)) 16))
+
+  (should (equal (memory-report-object-size (vector 1 2 3 4)) 80))
+
   (should (equal (memory-report-object-size "") 32))
   (should (equal (memory-report-object-size "a") 33))
   (should (equal (memory-report-object-size (propertize "a" 'face 'foo))
-                 ;; Possibly?
-                 161)))
+                 81)))
 
 (provide 'memory-report-tests)
 

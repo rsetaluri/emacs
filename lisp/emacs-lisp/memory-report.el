@@ -31,6 +31,8 @@
 (require 'subr-x)
 (eval-when-compile (require 'cl-lib))
 
+(defvar memory-report--type-size (make-hash-table))
+
 ;;;###autoload
 (defun memory-report ()
   "Generate a report of how Emacs is using memory."
@@ -67,8 +69,6 @@
   (unless memory-report--type-size
     (memory-report--garbage-collect))
   (memory-report--object-size (make-hash-table :test #'eq) object))
-
-(defvar memory-report--type-size (make-hash-table))
 
 (defun memory-report--size (type)
   (or (gethash type memory-report--type-size)
@@ -162,8 +162,12 @@
 (cl-defgeneric memory-report--object-size-1 (_counted _value)
   0)
 
-(cl-defmethod memory-report--object-size-1 (_ (_value symbol))
-  (memory-report--size 'symbol))
+(cl-defmethod memory-report--object-size-1 (_ (value symbol))
+  ;; Don't count global symbols -- makes sizes of lists of symbols too
+  ;; heavey.
+  (if (intern-soft value obarray)
+      0
+    (memory-report--size 'symbol)))
 
 (cl-defmethod memory-report--object-size-1 (_ (_value buffer))
   (memory-report--size 'buffer))
@@ -171,7 +175,18 @@
 (cl-defmethod memory-report--object-size-1 (counted (value string))
   (+ (memory-report--size 'string)
      (string-bytes value)
-     (memory-report--object-size counted (object-intervals value))))
+     (memory-report--interval-size counted (object-intervals value))))
+
+(defun memory-report--interval-size (counted intervals)
+  ;; We get a list back of intervals, but only count the "inner list"
+  ;; (i.e., the actual text properties), and add the size of the
+  ;; intervals themselves.
+  (+ (* (memory-report--size 'interval) (length intervals))
+     (seq-reduce #'+ (mapcar
+                      (lambda (interval)
+                        (memory-report--object-size counted (nth 2 interval)))
+                      intervals)
+                 0)))
 
 (cl-defmethod memory-report--object-size-1 (counted (value list))
   (let ((total 0)
