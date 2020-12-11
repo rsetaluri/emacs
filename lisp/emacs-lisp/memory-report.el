@@ -64,7 +64,9 @@
 
 (defun memory-report-object-size (object)
   "Return the size of OBJECT in bytes."
-  (memory-report--object-size (make-hash-table #'eq) object))
+  (unless memory-report--type-size
+    (memory-report--garbage-collect))
+  (memory-report--object-size (make-hash-table :test #'eq) object))
 
 (defvar memory-report--type-size (make-hash-table))
 
@@ -188,6 +190,14 @@
              do (setf (gethash elem counted) t)
              (cl-incf total (memory-report--object-size counted elem)))
     total))
+
+(cl-defmethod memory-report--object-size-1 (counted (value integer))
+  ;; There's no context an integer takes up more space?
+  0)
+
+(cl-defmethod memory-report--object-size-1 (counted (value float))
+  ;; There's no context a float takes up more space?
+  0)
 
 (cl-defmethod memory-report--object-size-1 (counted (value hash-table))
   (let ((total (+ (memory-report--size 'vector)
