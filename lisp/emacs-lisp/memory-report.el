@@ -160,7 +160,13 @@
     (memory-report--object-size-1 counted value)))
 
 (cl-defgeneric memory-report--object-size-1 (_counted _value)
-  (memory-report--size 'object))
+  0)
+
+(cl-defmethod memory-report--object-size-1 (_ (_value symbol))
+  (memory-report--size 'symbol))
+
+(cl-defmethod memory-report--object-size-1 (_ (_value buffer))
+  (memory-report--size 'buffer))
 
 (cl-defmethod memory-report--object-size-1 (counted (value string))
   (+ (memory-report--size 'string)
@@ -191,14 +197,6 @@
              (cl-incf total (memory-report--object-size counted elem)))
     total))
 
-(cl-defmethod memory-report--object-size-1 (counted (value integer))
-  ;; There's no context an integer takes up more space?
-  0)
-
-(cl-defmethod memory-report--object-size-1 (counted (value float))
-  ;; There's no context a float takes up more space?
-  0)
-
 (cl-defmethod memory-report--object-size-1 (counted (value hash-table))
   (let ((total (+ (memory-report--size 'vector)
                   (* (memory-report--size 'object) (hash-table-size value)))))
@@ -210,9 +208,6 @@
        (cl-incf total (memory-report--object-size counted elem)))
      value)
     total))
-
-(cl-defmethod memory-report--object-size-1 (_ (_value float))
-  (memory-report--size 'float))
 
 (defun memory-report--format (bytes)
   (setq bytes (/ bytes 1024.0))
