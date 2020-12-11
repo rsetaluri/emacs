@@ -31,6 +31,7 @@
   (interactive)
   (pop-to-buffer "*Memory-Report*")
   (special-mode)
+  (button-mode 1)
   (setq truncate-lines t)
   (message "Gathering data...")
   (let ((reports (append (memory-report--garbage-collect)
@@ -52,9 +53,7 @@
                       (car summary))))
     (insert "\n")
     (dolist (detail (nreverse details))
-      (insert detail "\n"))
-    ;;(add-face-text-property (point-min) (point) 'variable-pitch)
-    )
+      (insert detail "\n")))
   (goto-char (point-min)))
 
 (defun memory-report-object-size (object)
@@ -224,29 +223,49 @@
                                                       buffers)
                      do (insert (memory-report--format size)
                                 "  "
-                                (buffer-name buffer)
+                                (propertize
+                                 (buffer-name buffer)
+                                 'face 'button
+                                 'button t
+		                 'follow-link t
+		                 'category t
+                                 'button-data buffer
+                                 'keymap button-map
+                                 'action #'memory-report--buffer-details)
                                 "\n"))
             (buffer-string)))))
 
-(defun memory-report--buffer (buffer)
+(defun memory-report--buffer-details (buffer)
   (with-current-buffer buffer
-    (+ (save-restriction
-         (widen)
-         (+ (position-bytes (point-max))
-	    (- (position-bytes (point-min)))
-	    (gap-size)))
-       (seq-reduce #'+ (mapcar (lambda (elem)
-                                 (if (cdr elem)
-                                     (memory-report--object-size
-                                      (make-hash-table :test #'eq)
-                                      (cdr elem))
-                                   0))
-                               (buffer-local-variables buffer))
-                   0)
-       (memory-report--object-size (make-hash-table :test #'eq)
-                                   (object-intervals buffer))
-       (memory-report--object-size (make-hash-table :test #'eq)
-                                   (overlay-lists)))))
+    (apply
+     #'message
+     "Buffer text: %s; local variables: %s; text properties: %s; overlays: %s"
+     (mapcar
+      #'string-trim (mapcar #'memory-report--format
+                            (memory-report--buffer-data buffer))))))
+
+(defun memory-report--buffer (buffer)
+  (seq-reduce #'+ (memory-report--buffer-data buffer) 0))
+
+(defun memory-report--buffer-data (buffer)
+  (with-current-buffer buffer
+    (list (save-restriction
+            (widen)
+            (+ (position-bytes (point-max))
+	       (- (position-bytes (point-min)))
+	       (gap-size)))
+          (seq-reduce #'+ (mapcar (lambda (elem)
+                                    (if (cdr elem)
+                                        (memory-report--object-size
+                                         (make-hash-table :test #'eq)
+                                         (cdr elem))
+                                      0))
+                                  (buffer-local-variables buffer))
+                      0)
+          (memory-report--object-size (make-hash-table :test #'eq)
+                                      (object-intervals buffer))
+          (memory-report--object-size (make-hash-table :test #'eq)
+                                      (overlay-lists)))))
 
 (defun memory-report--image-cache ()
   (list (cons "Total Image Cache Size" (image-cache-size))))
