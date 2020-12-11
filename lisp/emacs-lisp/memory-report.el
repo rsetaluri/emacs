@@ -132,7 +132,8 @@
              (push (cons symbol size) variables)))))
      obarray)
     (list
-     (cons "Memory Used By Global Variables"
+     (cons (propertize "Memory Used By Global Variables"
+                       'help-echo "Upper bound; mutually overlapping data from different variables are counted several times")
            (seq-reduce #'+ (mapcar #'cdr variables) 0))
      (with-temp-buffer
        (insert (propertize "Largest Variables\n\n" 'face 'bold))
