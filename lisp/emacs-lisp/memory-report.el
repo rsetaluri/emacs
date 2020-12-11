@@ -36,7 +36,6 @@
   (let ((reports (append (memory-report--garbage-collect)
                          (memory-report--image-cache)
                          (memory-report--buffers)
-                         (memory-report--total-variables)
                          (memory-report--largest-variables)))
         (inhibit-read-only t)
         summaries details)
@@ -57,6 +56,10 @@
     ;;(add-face-text-property (point-min) (point) 'variable-pitch)
     )
   (goto-char (point-min)))
+
+(defun memory-report-object-size (object)
+  "Return the size of OBJECT in bytes."
+  (memory-report--object-size (make-hash-table #'eq) object))
 
 (defvar memory-report--type-size (make-hash-table))
 
@@ -116,29 +119,20 @@
                                 (capitalize (symbol-name (car object))))))
               (buffer-string))))))
 
-(defun memory-report--total-variables ()
-  (let ((counted (make-hash-table :test #'eq))
-        (total 0))
-    (mapatoms
-     (lambda (symbol)
-       (when (boundp symbol)
-         (cl-incf total (memory-report--variable-size
-                         counted (symbol-value symbol)))))
-     obarray)
-    (list (cons "Memory Used By Global Variables" total))))
-
 (defun memory-report--largest-variables ()
   (let ((variables nil))
     (mapatoms
      (lambda (symbol)
        (when (boundp symbol)
-         (let ((size (memory-report--variable-size
+         (let ((size (memory-report--object-size
                       (make-hash-table :test #'eq)
                       (symbol-value symbol))))
            (when (> size 1000)
              (push (cons symbol size) variables)))))
      obarray)
     (list
+     (cons "Memory Used By Global Variables"
+           (seq-reduce #'+ (mapcar #'cdr variables) 0))
      (with-temp-buffer
        (insert (propertize "Largest Variables\n\n" 'face 'bold))
        (cl-loop for i from 1 upto 20
@@ -151,57 +145,57 @@
                            "\n"))
        (buffer-string)))))
 
-(defun memory-report--variable-size (counted value)
+(defun memory-report--object-size (counted value)
   (if (gethash value counted)
       0
     (setf (gethash value counted) t)
-    (memory-report--variable-size-1 counted value)))
+    (memory-report--object-size-1 counted value)))
 
-(cl-defgeneric memory-report--variable-size-1 (_counted _value)
+(cl-defgeneric memory-report--object-size-1 (_counted _value)
   (memory-report--size 'object))
 
-(cl-defmethod memory-report--variable-size-1 (counted (value string))
+(cl-defmethod memory-report--object-size-1 (counted (value string))
   (+ (memory-report--size 'string)
      (string-bytes value)
-     (memory-report--variable-size counted (object-intervals value))))
+     (memory-report--object-size counted (object-intervals value))))
 
-(cl-defmethod memory-report--variable-size-1 (counted (value list))
+(cl-defmethod memory-report--object-size-1 (counted (value list))
   (let ((total 0)
         (size (memory-report--size 'cons)))
     (while value
       (cl-incf total size)
       (setf (gethash value counted) t)
       (when (car value)
-        (cl-incf total (memory-report--variable-size counted (car value))))
+        (cl-incf total (memory-report--object-size counted (car value))))
       (if (cdr value)
           (if (consp (cdr value))
               (setq value (cdr value))
-            (cl-incf total (memory-report--variable-size counted (cdr value)))
+            (cl-incf total (memory-report--object-size counted (cdr value)))
             (setq value nil))
         (setq value nil)))
     total))
 
-(cl-defmethod memory-report--variable-size-1 (counted (value vector))
+(cl-defmethod memory-report--object-size-1 (counted (value vector))
   (let ((total (+ (memory-report--size 'vector)
                   (* (memory-report--size 'object) (length value)))))
     (cl-loop for elem across value
              do (setf (gethash elem counted) t)
-             (cl-incf total (memory-report--variable-size counted elem)))
+             (cl-incf total (memory-report--object-size counted elem)))
     total))
 
-(cl-defmethod memory-report--variable-size-1 (counted (value hash-table))
+(cl-defmethod memory-report--object-size-1 (counted (value hash-table))
   (let ((total (+ (memory-report--size 'vector)
                   (* (memory-report--size 'object) (hash-table-size value)))))
     (maphash
      (lambda (key elem)
        (setf (gethash key counted) t)
        (setf (gethash elem counted) t)
-       (cl-incf total (memory-report--variable-size counted key))
-       (cl-incf total (memory-report--variable-size counted elem)))
+       (cl-incf total (memory-report--object-size counted key))
+       (cl-incf total (memory-report--object-size counted elem)))
      value)
     total))
 
-(cl-defmethod memory-report--variable-size-1 (_ (_value float))
+(cl-defmethod memory-report--object-size-1 (_ (_value float))
   (memory-report--size 'float))
 
 (defun memory-report--format (bytes)
@@ -243,16 +237,16 @@
 	    (gap-size)))
        (seq-reduce #'+ (mapcar (lambda (elem)
                                  (if (cdr elem)
-                                     (memory-report--variable-size
+                                     (memory-report--object-size
                                       (make-hash-table :test #'eq)
                                       (cdr elem))
                                    0))
                                (buffer-local-variables buffer))
                    0)
-       (memory-report--variable-size (make-hash-table :test #'eq)
-                                     (object-intervals buffer))
-       (memory-report--variable-size (make-hash-table :test #'eq)
-                                     (overlay-lists)))))
+       (memory-report--object-size (make-hash-table :test #'eq)
+                                   (object-intervals buffer))
+       (memory-report--object-size (make-hash-table :test #'eq)
+                                   (overlay-lists)))))
 
 (defun memory-report--image-cache ()
   (list (cons "Total Image Cache Size" (image-cache-size))))
