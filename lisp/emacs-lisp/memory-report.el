@@ -24,6 +24,8 @@
 ;;; Code:
 
 (require 'seq)
+(require 'subr-x)
+(eval-when-compile (require 'cl-lib))
 
 ;;;###autoload
 (defun memory-report ()
@@ -223,15 +225,9 @@
                                                       buffers)
                      do (insert (memory-report--format size)
                                 "  "
-                                (propertize
+                                (button-buttonize
                                  (buffer-name buffer)
-                                 'face 'button
-                                 'button t
-		                 'follow-link t
-		                 'category t
-                                 'button-data buffer
-                                 'keymap button-map
-                                 'action #'memory-report--buffer-details)
+                                 #'memory-report--buffer-details buffer)
                                 "\n"))
             (buffer-string)))))
 
@@ -239,10 +235,9 @@
   (with-current-buffer buffer
     (apply
      #'message
-     "Buffer text: %s; local variables: %s; text properties: %s; overlays: %s"
-     (mapcar
-      #'string-trim (mapcar #'memory-report--format
-                            (memory-report--buffer-data buffer))))))
+     "Buffer text: %s; variables: %s; text properties: %s; overlays: %s"
+     (mapcar #'string-trim (mapcar #'memory-report--format
+                                   (memory-report--buffer-data buffer))))))
 
 (defun memory-report--buffer (buffer)
   (seq-reduce #'+ (memory-report--buffer-data buffer) 0))
