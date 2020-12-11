@@ -21,6 +21,10 @@
 
 ;;; Commentary:
 
+;; Todo (possibly): Font cache, regexp cache, bidi cache, various
+;; buffer caches (newline cache, free_region_cache, etc), composition
+;; cache, face cache.
+
 ;;; Code:
 
 (require 'seq)
